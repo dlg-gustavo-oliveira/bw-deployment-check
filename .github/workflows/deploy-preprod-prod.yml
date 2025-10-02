@@ -1,0 +1,32 @@
+name: Deploy
+run-name: Deploy version ${{ inputs.version }} to ${{ inputs.environment }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version'
+        required: true
+      environment:
+        description: 'Environment'
+        required: true
+        default: 'preprod'
+        type: choice
+        options:
+          - preprod
+          - prod
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Manual Approval
+        uses: trstringer/manual-approval@v1
+        with:
+          secret: ${{ secrets.GITHUB_TOKEN }}
+          approvers: dlg-gustavo-oliveira
+
+      - name: Deploy
+        run: echo "Deploying version ${{ inputs.version }} to ${{ inputs.environment }}"
