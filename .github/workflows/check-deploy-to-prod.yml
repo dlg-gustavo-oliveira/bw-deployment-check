@@ -1,0 +1,42 @@
+name: Check Deploy to Prod
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  check-deploy:
+    runs-on: ubuntu-latest
+    permissions: read-all
+    steps:
+      - name: Extract release version from branch name
+        id: extract_version
+        run: |
+          echo "${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $HOME/branch.json
+          version=`cat $HOME/branch.json | cut -d'/' -f2`
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Check for deployment
+        id: get_workflow_runs
+        run: |
+          curl -L \
+          -H "Accept: application/vnd.github+json" \
+          -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+          https://api.github.com/repos/${{ github.repository }}/actions/runs?event=workflow_dispatch > $HOME/workflow_runs_data.json
+          content=`cat $HOME/workflow_runs_data.json | jq '.workflow_runs[] | select(.name=="Deploy version ${{ steps.extract_version.outputs.version}} to prod") | select(.conclusion=="success")'`
+          # the following lines are only required for multi line json
+          content="${content//$'\n'/'%0A'}"
+          # end of optional handling for multi line json
+          echo "workflow_runs_data=$content" >> "$GITHUB_OUTPUT"
+      - name: print data
+        run: |
+          echo "Version: ${{ steps.extract_version.outputs.version}}"
+          echo "Workflow runs: ${{ steps.get_workflow_runs.outputs.workflow_runs_data }}"
+      - name: Fail if no deployment found
+        if: ${{ steps.get_workflow_runs.outputs.workflow_runs_data == '' }}
+        run: | 
+          echo "No successful deployment to prod found for version ${{ steps.extract_version.outputs.version }}"
+          exit 1
+      - name: Success
+        run: echo "Successful deployment to prod found for version ${{ steps.extract_version.outputs.version }}"
+        
